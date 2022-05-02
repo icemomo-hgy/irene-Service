@@ -24,5 +24,20 @@ mybatis-plus:
   mapper-locations: classpath*:com/irene/Mapper/MapperXml/*Mapper.xml
   type-aliases-package: com.irene.Entity
 server:
-  port: 80
+  port: 443
+  ssl:
+    enabled: true
+    key-store:  classpath:ssl/irene.icemomo.com.jks
+    key-store-password: 19w1omc2s24t19z
+    keyStoreType: JKS
+
+
+
+
+
+qiniu:
+  accessKey: uPRvtpTUVkqRJ2wRHgMpwIO8Irr-Q5mPJoY6p97v
+  secretKey: nUE6KM_7DbYxemVwo7LpWgZCG8AxeIL5hbK5FZB8
+  bucketName: irene-soe  #存储空间名称
+  path: https://soe.icemomo.com
 

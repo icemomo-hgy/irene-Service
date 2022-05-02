@@ -16,6 +16,7 @@ public class JwtHelper {
                     .setExpiration(new Date(expireTime))
                     .setId(UUID.randomUUID().toString())
                     .signWith(SignatureAlgorithm.HS256, signature).compact();
+
             return token;
         }
 

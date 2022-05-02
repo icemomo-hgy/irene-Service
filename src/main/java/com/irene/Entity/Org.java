@@ -1,22 +1,27 @@
 package com.irene.Entity;
 
-import com.baomidou.mybatisplus.annotation.FieldFill;
-import com.baomidou.mybatisplus.annotation.TableField;
-import com.baomidou.mybatisplus.annotation.TableName;
+import com.baomidou.mybatisplus.annotation.*;
+import com.fasterxml.jackson.annotation.JsonFormat;
 import lombok.Data;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.Date;
 
 @Data
 @TableName("org")
 public class Org {
-    private Integer id;
+    @TableId(type = IdType.AUTO)
+    private Integer oid;
     private String name;
-    @TableField(fill = FieldFill.INSERT) //插入时填充字段
-    private LocalDateTime create_time;
-    private Integer sum_people;
-    private Double sum_time;
-    private String service_object ;
+    @TableField(value ="create_time", fill = FieldFill.INSERT) //插入时填充字段
+    @JsonFormat(pattern = "yyyy-MM-dd", timezone = "GMT+8")
+    private LocalDate createTime;
+    @TableField("sum_people")
+    private Integer sumPeople;
+    @TableField("sum_time")
+    private Double sumTime;
+    @TableField("service_object")
+    private String serviceObject ;
     private String region;
 }

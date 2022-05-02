@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd" >
+<mapper namespace="com.irene.Mapper.ActivityIdMapper">
+
+<select id="getServicesHistory" resultType="com.irene.VO.ActivityDetail">
+
+    select * from activity
+    where activity_id in (select aid from active_uid t1 ,user where #{tokenid} =t1.uid);
+
+</select>
+    
+</mapper>

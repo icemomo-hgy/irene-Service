@@ -1,14 +1,19 @@
 package com.irene.Controller;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.irene.Entity.Org;
 import com.irene.Entity.User;
 import com.irene.Entity.UserInfo;
+import com.irene.Excetion.BusinessException;
+import com.irene.Mapper.UserMapper;
+import com.irene.Service.OrgService;
 import com.irene.Service.UserInfoService;
 import com.irene.Service.UserService;
-import com.irene.common.Code;
-import com.irene.common.Result;
-import com.irene.common.SendMail;
-import com.irene.common.ValidateCodeUtils;
+import com.irene.common.*;
 import com.irene.util.JwtHelper;
+import com.irene.util.QiniuUtils;
+import com.irene.util.StringUtils;
+import io.jsonwebtoken.JwtParser;
+import io.jsonwebtoken.Jwts;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -16,19 +21,28 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 import javax.servlet.http.HttpSession;
+import java.io.FileInputStream;
+import java.io.IOException;
 import java.time.LocalDateTime;
 import java.util.Date;
 import java.util.List;
 import org.springframework.util.DigestUtils;
+import org.springframework.web.multipart.MultipartFile;
+
 @Slf4j
 @RestController
 public class UserConrtoller {
     @Autowired
     private UserService userService;
     @Autowired
+    private OrgService orgService;
+    @Autowired
     private SendMail sendMail;
     @Autowired
     private UserInfoService userInfoService;
+
+    @Autowired
+    private QiniuUtils qiniuUtils;
     @SneakyThrows
     //发送邮箱验证码
     @PostMapping("/sendEmail")
@@ -38,13 +52,13 @@ public class UserConrtoller {
         System.out.println(email);
         session.setAttribute("code",integer.toString());
         session.setAttribute("email",email);
-        sendMail.sendSimpleMail(integer.toString(),email);
+        sendMail.sendSimpleMail(integer.toString(),email, MailModel.REGISTER_MAIL);
     return Result.success(Code.SAVE_OK,"发送成功！");
     }
 
 //        邮箱注册
     @PostMapping("/register")
-    public Result<String> register(@RequestBody User user ,HttpSession session){
+    public Result<String> register(User user ,HttpSession session){
         LambdaQueryWrapper<User> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(User::getEmail,user.getEmail());
         User one = userService.getOne(wrapper);
@@ -66,38 +80,50 @@ public class UserConrtoller {
             return Result.success(Code.SAVE_OK,"注册成功");
         }else if (!SessionCode.equals(code)){
             return  Result.error(Code.SAVE_ERR,"验证码错误！");
-        }else {
+        }else if(one ==null){
             return  Result.error(Code.SAVE_ERR,"改邮箱已存在！");
+        }else {
+            return Result.error(Code.SAVE_ERR,"未知错误");
         }
     }
-    @PostMapping("login")
-    public Result<UserInfo> emailLogin(@RequestBody User user){
+    /**
+     * @author 黄冠瑛
+     * @date 2022/5/3
+     * 邮箱登录
+     */
+    @PostMapping("/login")
+    public Result<UserInfo> emailLogin(User user){
         JwtHelper jwt  =new JwtHelper();
         String password = DigestUtils.md5DigestAsHex(user.getPassword().getBytes());
         LambdaQueryWrapper<User> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(User::getEmail,user.getEmail()).eq(User::getPassword,password);
         LambdaQueryWrapper<UserInfo> wrapper1 = new LambdaQueryWrapper<>();
         User tar = userService.getOne(wrapper);
-        wrapper1.eq(UserInfo::getInfo_id,tar.getId());
+        wrapper1.eq(UserInfo::getInfoId,tar.getId());
         UserInfo tarInfo = userInfoService.getOne(wrapper1);
-        System.out.println(user);
+
         if(tar==null){
             return Result.error(Code.SAVE_ERR,"用户不存在或密码错误！");
-        }else if(tarInfo==null&&tar!=null){
+        }
+
+     if(tarInfo==null&&tar!=null){
             UserInfo  u = new UserInfo();
             u.setName(tar.getName());
-            u.setInfo_id(tar.getId());
+            u.setInfoId(tar.getId());
             u.setEmail(tar.getEmail());
-            String token = jwt.getToken(u.getInfo_id());
+            String token = jwt.getToken(u.getInfoId());
             u.setToken(token);
-            LocalDateTime localDateTime = LocalDateTime.now();
-            u.setRegister_time(localDateTime);
             userInfoService.save(u);
          return Result.success(Code.SAVE_OK,u,"登录成功!");
 
         }else if(tar!=null&&tarInfo!=null){
-            String token = jwt.getToken(tarInfo.getInfo_id());
+         Integer oid = tarInfo.getOid();
+         Org org = orgService.getById(oid);
+            System.out.println(tarInfo);
+            String token = jwt.getToken(tarInfo.getInfoId());
             tarInfo.setToken(token);
+            tarInfo.setOrg(org);
+         userInfoService.updateById(tarInfo);
             return Result.success(Code.SAVE_OK,tarInfo,"登录成功！");
 
         }else {
@@ -105,5 +131,103 @@ public class UserConrtoller {
         }
 
     }
+
+    /**
+     * @author 黄冠瑛
+     * @date 2022/5/3
+     * 重置密码验证邮箱
+     */
+    @SneakyThrows
+    @PostMapping("/sendresetpsd")
+    public Result  sendresetpsd(User user,HttpSession session){
+        Integer code = ValidateCodeUtils.generateValidateCode(6);
+        session.setAttribute("Rcode",code);
+        session.setAttribute("Remail",user.getEmail().toString());
+        session.setMaxInactiveInterval(5*60); //五分钟过期
+       sendMail.sendSimpleMail(code.toString(),user.getEmail().toString(),MailModel.RESETPSD_MAIL);
+        return Result.success(Code.SAVE_OK,"邮箱发送成功！");
+    }
+
+
+
+    /**
+     * @author 黄冠瑛
+     * @date 2022/5/3
+     * 邮箱重置密码
+     */
+    @PostMapping("/resetpsd")
+    public Result resetpsd(User user,HttpSession session){
+        String email = user.getEmail();
+        String inputCode = user.getCode();
+        String code = session.getAttribute("Rcode").toString();
+        String sessionEmail = session.getAttribute("Remail").toString();
+        LambdaQueryWrapper<User> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(User::getEmail,email);
+        User tar = userService.getOne(wrapper);
+        if(email.equals(sessionEmail) && inputCode.equals(code)){
+            String s = DigestUtils.md5DigestAsHex(user.getPassword().getBytes());
+            tar.setPassword(s);
+            userService.updateById(tar);
+            return Result.success(Code.SAVE_OK,"修改密码成功！");
+        }else if(code==null|| !inputCode.equals(code)){
+           return Result.error(Code.SAVE_ERR,"验证码错误！");
+        }else {
+            throw new BusinessException(Code.BUSINESS_ERR,"未知异常");
+        }
+
+    }
+
+
+    @SneakyThrows
+    @PostMapping("/avatar/upload")
+    public Result<String> uploadAvatar(String token,MultipartFile file){
+        Long tokenId = new JwtHelper().getTokenId(token);
+        LambdaQueryWrapper<UserInfo> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(UserInfo::getInfoId,tokenId);
+        UserInfo tar = userInfoService.getOne(wrapper);
+        System.out.println(tar);
+        String imgName = StringUtils.getImgName(file.getOriginalFilename());
+
+            if(tar!=null&&tar.getPic()==null){
+                log.info("直接上传！");
+                String resName = qiniuUtils.upload((FileInputStream) file.getInputStream(),imgName);
+
+                tar.setPic(resName);
+                    userInfoService.updateById(tar);
+                return Result.success(Code.SAVE_OK,resName,"上传成功");
+            }else if(tar!=null&&tar.getPic()!=null){
+                log.info("覆盖上传！");
+                String[] split = tar.getPic().split("https://soe.icemomo.com/");
+                String resName = qiniuUtils.reupload((FileInputStream) file.getInputStream(), imgName,split[1]);
+                 tar.setPic(resName);
+                userInfoService.updateById(tar);
+                return Result.success(Code.SAVE_OK,resName,"覆盖上传");
+            }
+            else {
+                throw new BusinessException(Code.BUSINESS_ERR,"用户签名已过期");
+            }
+
+        }
+
+
+//        更新用户信息
+    @PostMapping("/updateUser")
+    public Result<UserInfo> updateUserInfo(UserInfo userInfo){
+            if(userInfo == null){
+                throw new BusinessException(Code.BUSINESS_ERR,"不能传入空参");
+            }else {
+              try {
+                  Long tokenId = new JwtHelper().getTokenId(userInfo.getToken());
+                  userInfo.setInfoId(tokenId);
+                  userInfoService.updateById(userInfo);
+                  return Result.success(Code.SAVE_OK,"修改用户信息成功！");
+              }catch (Exception e){
+                  throw new BusinessException(Code.BUSINESS_ERR,"Token错误过期，请重新登录！");
+              }
+
+            }
+
+    }
+
 
 }

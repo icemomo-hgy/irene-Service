@@ -1,26 +1,38 @@
 package com.irene.Entity;
 
-import com.baomidou.mybatisplus.annotation.FieldFill;
-import com.baomidou.mybatisplus.annotation.TableField;
-import com.baomidou.mybatisplus.annotation.TableName;
+import com.baomidou.mybatisplus.annotation.*;
+import com.fasterxml.jackson.annotation.JsonFormat;
 import lombok.Data;
 
+import java.io.Serializable;
 import java.time.LocalDateTime;
 import java.util.Date;
 
 @Data
 @TableName(value = "activity")
-public class Activity {
-    private int id;
+public class Activity implements Serializable {
+    private static final long serialVersionUID = 1L;
+    @TableId(type = IdType.AUTO)
+    private Integer ActivityId;
     private String name;
+    @TableField("need_num")
+    private Integer needNum;
     @TableField(fill = FieldFill.INSERT)
+    @JsonFormat(pattern = "yyyy-MM-dd",timezone = "GMT+8")
     private Date date; //发布日期
     private double time; //服务时长
-    private Long user_id;
     private Integer location;
     private String info;
-    private int org_id;
+    @TableField("org_id")
+    private int orgId;
     private int people_num;
-    private LocalDateTime end_time;
+    @TableField("end_time")
+    @JsonFormat(pattern = "yyyy-MM-dd hh:mm:ss",timezone = "GMT+8")
+    private LocalDateTime endTime;
+    @TableField(exist = false)
+    private String locationName;
+    @TableField(exist = false)
+    private String orgName;
+    private Long mid;
 
 }
