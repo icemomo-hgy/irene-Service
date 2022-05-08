@@ -28,7 +28,7 @@ server:
   ssl:
     enabled: true
     key-store:  classpath:ssl/irene.icemomo.com.jks
-    key-store-password: 19w1omc2s24t19z
+    key-store-password: z19w1omc2s24t19
     keyStoreType: JKS
 
 
@@ -36,8 +36,8 @@ server:
 
 
 qiniu:
-  accessKey: uPRvtpTUVkqRJ2wRHgMpwIO8Irr-Q5mPJoY6p97v
-  secretKey: nUE6KM_7DbYxemVwo7LpWgZCG8AxeIL5hbK5FZB8
+  accessKey: vuPRvtpTUVkqRJ2wRHgMpwIO8Irr-Q5mPJoY6p97v
+  secretKey: 8nUE6KM_7DbYxemVwo7LpWgZCG8AxeIL5hbK5FZB
   bucketName: irene-soe  #存储空间名称
   path: https://soe.icemomo.com
 
